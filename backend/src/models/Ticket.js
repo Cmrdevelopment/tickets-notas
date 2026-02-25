@@ -1,37 +1,26 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const noteSchema = new mongoose.Schema(
   {
-    text: { type: String, required: true, trim: true },
-    at: { type: Date, default: Date.now } // fecha/hora de la nota
+    text: { type: String, required: true },
+    at: { type: Date, default: Date.now },
   },
   { _id: true }
 );
 
 const ticketSchema = new mongoose.Schema(
   {
-    applicationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Application",
-      required: true,
-      index: true
-    },
+    applicationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Application', required: true, index: true },
     title: { type: String, required: true, trim: true },
+    status: { type: String, enum: ['pendiente', 'en_curso', 'hecho'], default: 'pendiente', index: true },
+    order: { type: Number, default: 0 },
 
-    // ✅ Estado simple
-    status: {
-      type: String,
-      enum: ["pendiente", "en_curso", "hecho"],
-      default: "pendiente",
-      index: true
-    },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Person', default: null },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Person', default: null },
 
-    // ✅ Orden dentro de cada estado (menor = más arriba)
-    order: { type: Number, default: 0, index: true },
-
-    notes: { type: [noteSchema], default: [] }
+    notes: { type: [noteSchema], default: [] },
   },
   { timestamps: true }
 );
 
-export default mongoose.model("Ticket", ticketSchema);
+export default mongoose.model('Ticket', ticketSchema);
