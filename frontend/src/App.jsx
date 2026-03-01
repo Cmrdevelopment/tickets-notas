@@ -26,11 +26,16 @@ const STATUS = [
 ];
 
 function formatDate(d) {
-  try {
-    return new Date(d).toLocaleString();
-  } catch {
-    return "";
-  }
+  if (!d) return "";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function accentClasses(accent) {
@@ -1667,8 +1672,8 @@ export default function App() {
                             {n.text}
                           </Typography>
                           <Typography variant="small" className="mt-2 text-gray-600">
-                            {formatDate(n.at)}
-                          </Typography>
+                          {formatDate(n.at || selectedTicket?.updatedAt || selectedTicket?.createdAt)}
+                        </Typography>
                         </>
                       ) : (
                         <>

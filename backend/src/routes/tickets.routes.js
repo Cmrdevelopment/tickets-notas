@@ -19,8 +19,13 @@ router.post('/', async (req, res) => {
   if (!title?.trim()) return res.status(400).json({ message: 'title requerido' });
   if (!createdBy) return res.status(400).json({ message: 'createdBy requerido' });
 
-  const last = await Ticket.findOne({ applicationId, status: 'pendiente' }).sort({ order: -1 });
-  const order = last ? (last.order ?? 0) + 1 : 0;
+  // ✅ Nuevo ticket arriba del todo: order = 0 y desplazamos el resto
+await Ticket.updateMany(
+  { applicationId, status: 'pendiente' },
+  { $inc: { order: 1 } }
+);
+
+const order = 0;
 
   const ticket = await Ticket.create({
     applicationId,

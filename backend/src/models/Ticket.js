@@ -18,7 +18,13 @@ const ticketSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Person', default: null },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Person', default: null },
 
-    notes: { type: [noteSchema], default: [] },
+    notes: [
+  {
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    text: { type: String, required: true },
+    at: { type: Date, default: Date.now }, // ✅ fecha/hora creación nota
+  },
+],
   },
   { timestamps: true }
 );

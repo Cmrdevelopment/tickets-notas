@@ -38,8 +38,17 @@ export const api = {
   deleteTicket: (ticketId) => http(`/tickets/${ticketId}`, { method: 'DELETE' }),
 
   addNote: (ticketId, text) => http(`/tickets/${ticketId}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
-  updateNote: (ticketId, noteId, text) => http(`/tickets/${ticketId}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
-  deleteNote: (ticketId, noteId) => http(`/tickets/${ticketId}/notes/${noteId}`, { method: 'DELETE' }),
+
+  updateNote: (ticketId, noteId, text) =>
+  http(`/tickets/${ticketId}/notes/${noteId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ text }),
+  }),
+
+deleteNote: (ticketId, noteId) =>
+  http(`/tickets/${ticketId}/notes/${noteId}`, {
+    method: 'DELETE',
+  }),
 
   updateTitle: (ticketId, title) => http(`/tickets/${ticketId}/title`, { method: 'PATCH', body: JSON.stringify({ title }) }),
   updateTicketPeople: (ticketId, createdBy, assignedTo = null) =>
