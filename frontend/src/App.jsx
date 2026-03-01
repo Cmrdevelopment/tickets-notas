@@ -1047,7 +1047,7 @@ export default function App() {
         {/* Layout desktop */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4">
           {/* Apps */}
-          <Card className="hidden md:block md:col-span-4 shadow-sm rounded-2xl">
+          <Card className="hidden md:block md:col-span-3 shadow-sm rounded-2xl">
             <CardBody>
               <div className="flex items-center justify-between">
                 <Typography variant="h6" className="text-blue-gray-900">
@@ -1127,7 +1127,7 @@ export default function App() {
           </Card>
 
           {/* Board */}
-          <Card className="md:col-span-8 shadow-sm rounded-2xl">
+          <Card className="md:col-span-9 shadow-sm rounded-2xl">
             <CardBody>
               <div className="flex items-center justify-between">
                 <Typography variant="h6" className="text-blue-gray-900">
