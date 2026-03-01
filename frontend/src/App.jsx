@@ -308,7 +308,7 @@ export default function App() {
   const [savingTicketPeople, setSavingTicketPeople] = useState(false);
 
   // guía (arriba del tablero)
-  const [guideOpen, setGuideOpen] = useState(true);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [guideTab, setGuideTab] = useState("basico"); // "basico" | "atajos"
 
   // toast inline por zona
