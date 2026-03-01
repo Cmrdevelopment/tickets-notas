@@ -150,7 +150,6 @@ function Modal({ open, title, children, footer, onClose }) {
           >
             Cerrar
           </button>
-          
         </div>
 
         {/* body */}
@@ -217,7 +216,6 @@ function AppRow({ app, depth, active, onSelect, onRename, onDelete, onMoveRoot }
           className="min-w-0 flex-1 pr-2"
           style={{ paddingLeft: `${depth * 14}px` }}
         >
-          {/* ✅ sin truncate para ver nombres completos */}
           <Typography className="font-semibold text-blue-gray-900 break-words leading-5">
             {app.name}
           </Typography>
@@ -330,8 +328,16 @@ export default function App() {
 
   // Drag tickets
   const dragRef = useRef({ ticketId: null, fromStatus: null });
+  const closeTicketModalTRef = useRef(null);
+  const noteInputRef = useRef(null);
   const [dragOverStatus, setDragOverStatus] = useState(null);
   const [dragOverTicketId, setDragOverTicketId] = useState(null);
+
+  useEffect(() => {
+    return () => {
+      if (closeTicketModalTRef.current) clearTimeout(closeTicketModalTRef.current);
+    };
+  }, []);
 
   // DnD apps
   const sensors = useSensors(
@@ -341,7 +347,9 @@ export default function App() {
   const appsArr = Array.isArray(apps) ? apps : [];
 
   const selectedTicket = useMemo(
-    () => (Array.isArray(tickets) ? tickets : []).find((t) => t._id === selectedTicketId) || null,
+    () =>
+      (Array.isArray(tickets) ? tickets : []).find((t) => t._id === selectedTicketId) ||
+      null,
     [tickets, selectedTicketId]
   );
 
@@ -361,7 +369,8 @@ export default function App() {
 
   const ticketsByStatus = useMemo(() => {
     const map = { pendiente: [], en_curso: [], hecho: [] };
-    for (const t of (Array.isArray(tickets) ? tickets : [])) map[t.status || "pendiente"].push(t);
+    for (const t of (Array.isArray(tickets) ? tickets : []))
+      map[t.status || "pendiente"].push(t);
 
     for (const k of Object.keys(map)) {
       map[k].sort((a, b) => {
@@ -431,7 +440,7 @@ export default function App() {
   }
 
   // ==========================
-  // Crear Ticket
+  // Crear Ticket  ✅ CORREGIDO
   // ==========================
   async function onCreateTicket() {
     if (creatingTicket) return;
@@ -454,10 +463,46 @@ export default function App() {
 
     try {
       setCreatingTicket(true);
-      await api.createTicket(selectedAppId, String(ticketTitle).trim(), newCreatedBy, newAssignedTo || null);
+
+      const created = await api.createTicket(
+        selectedAppId,
+        String(ticketTitle).trim(),
+        newCreatedBy,
+        newAssignedTo || null
+      );
+
       setTicketTitle("");
       setNewAssignedTo("");
-      await refreshTickets(selectedAppId);
+
+      // Si el API devuelve el ticket creado, lo abrimos directo:
+      if (created && created._id) {
+        setTickets((prev) => {
+          const arr = Array.isArray(prev) ? prev : [];
+          const exists = arr.some((t) => String(t._id) === String(created._id));
+          return exists ? arr : [created, ...arr];
+        });
+
+        openTicket(created); // ✅ abre el modal
+        await bringTicketToTop(
+          selectedAppId,
+          created.status || "pendiente",
+          created._id
+        );
+      } else {
+        // ✅ fallback correcto: NO uses `tickets` (estado viejo)
+        const arr = await api.listTickets(selectedAppId);
+        setTickets(arr);
+
+        const latest =
+          (Array.isArray(arr) ? arr : [])
+            .slice()
+            .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0] ||
+          null;
+
+        if (latest) openTicket(latest);
+        await bringTicketToTop(selectedAppId, latest.status || "pendiente", latest._id);
+      }
+
       showToast("✅ Ticket creado", "ok", "ticket");
     } catch (err) {
       console.error(err);
@@ -489,7 +534,9 @@ export default function App() {
       setAddingNote(true);
       const updated = await api.addNote(selectedTicketId, txt);
       setNoteText("");
-      setTickets((prev) => (Array.isArray(prev) ? prev : []).map((t) => (t._id === updated._id ? updated : t)));
+      setTickets((prev) =>
+        (Array.isArray(prev) ? prev : []).map((t) => (t._id === updated._id ? updated : t))
+      );
       showToast("✅ Nota añadida", "ok", "modal");
     } catch (err) {
       console.error(err);
@@ -514,7 +561,9 @@ export default function App() {
     try {
       setSavingTitle(true);
       const updated = await api.updateTitle(ticketId, t);
-      setTickets((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x)));
+      setTickets((prev) =>
+        (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x))
+      );
       setEditingTitle({ ticketId: null, title: "" });
       showToast("✅ Título guardado", "ok", "modal");
     } catch (err) {
@@ -540,7 +589,9 @@ export default function App() {
     try {
       setSavingNote(true);
       const updated = await api.updateNote(ticketId, noteId, t);
-      setTickets((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x)));
+      setTickets((prev) =>
+        (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x))
+      );
       setEditingNote({ ticketId: null, noteId: null, text: "" });
       showToast("✅ Nota guardada", "ok", "modal");
     } catch (err) {
@@ -559,7 +610,9 @@ export default function App() {
 
     try {
       const updated = await api.deleteNote(ticketId, noteId);
-      setTickets((prev) => (Array.isArray(prev) ? prev : []).map((t) => (t._id === updated._id ? updated : t)));
+      setTickets((prev) =>
+        (Array.isArray(prev) ? prev : []).map((t) => (t._id === updated._id ? updated : t))
+      );
       setEditingNote({ ticketId: null, noteId: null, text: "" });
       showToast("✅ Nota borrada", "ok", "modal");
     } catch (err) {
@@ -598,9 +651,24 @@ export default function App() {
 
     try {
       setSavingTicketPeople(true);
-      const updated = await api.updateTicketPeople(ticket._id, ticket.createdBy, ticket.assignedTo || null);
-      setTickets((prev) => (Array.isArray(prev) ? prev : []).map((t) => (t._id === updated._id ? updated : t)));
+
+      const updated = await api.updateTicketPeople(
+        ticket._id,
+        ticket.createdBy,
+        ticket.assignedTo || null
+      );
+
+      setTickets((prev) =>
+        (Array.isArray(prev) ? prev : []).map((t) => (t._id === updated._id ? updated : t))
+      );
+
       showToast("✅ Cambios guardados", "ok", "modal");
+
+      // ✅ cerrar modal en 2s
+      if (closeTicketModalTRef.current) clearTimeout(closeTicketModalTRef.current);
+      closeTicketModalTRef.current = setTimeout(() => {
+        setTicketModalOpen(false);
+      }, 2000);
     } catch (err) {
       console.error(err);
       showToast(err?.message || "Error guardando cambios", "error", "modal");
@@ -618,13 +686,21 @@ export default function App() {
     const current = t.status || "pendiente";
     if (current === status) return;
 
-    setTickets((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === ticketId ? { ...x, status } : x)));
+    setTickets((prev) =>
+      (Array.isArray(prev) ? prev : []).map((x) => (x._id === ticketId ? { ...x, status } : x))
+    );
 
     try {
       const updated = await api.setStatus(ticketId, status);
-      setTickets((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x)));
+      setTickets((prev) =>
+        (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x))
+      );
     } catch (err) {
-      setTickets((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === ticketId ? { ...x, status: current } : x)));
+      setTickets((prev) =>
+        (Array.isArray(prev) ? prev : []).map((x) =>
+          x._id === ticketId ? { ...x, status: current } : x
+        )
+      );
       console.error(err);
     }
   }
@@ -656,6 +732,66 @@ export default function App() {
       await refreshTickets(selectedAppId);
     }
   }
+
+  async function bringTicketToTop(appId, statusKey, ticketId) {
+  if (!appId || !statusKey || !ticketId) return;
+
+  // 1) Orden local inmediato (para que en UI se vea arriba YA)
+  setTickets((prev) => {
+    const arr = Array.isArray(prev) ? prev : [];
+    const same = arr.filter((t) => (t.status || "pendiente") === statusKey);
+    const other = arr.filter((t) => (t.status || "pendiente") !== statusKey);
+
+    const ids = same
+      .slice()
+      .sort((a, b) => {
+        const ao = Number.isFinite(a.order) ? a.order : 0;
+        const bo = Number.isFinite(b.order) ? b.order : 0;
+        if (ao !== bo) return ao - bo;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      })
+      .map((t) => t._id);
+
+    // lo ponemos el primero
+    const nextIds = [ticketId, ...ids.filter((id) => String(id) !== String(ticketId))];
+
+    const map = new Map(arr.map((t) => [String(t._id), t]));
+    nextIds.forEach((id, idx) => {
+      const t = map.get(String(id));
+      if (t) map.set(String(id), { ...t, order: idx });
+    });
+
+    // reconstruye: otros + misma columna con order actualizado
+    const nextSame = nextIds.map((id) => map.get(String(id))).filter(Boolean);
+    return [...other, ...nextSame];
+  });
+
+  // 2) Persistimos el orden en backend y refrescamos
+  try {
+    const arr = await api.listTickets(appId);
+    const same = (Array.isArray(arr) ? arr : []).filter(
+      (t) => (t.status || "pendiente") === statusKey
+    );
+
+    const ids = same
+      .slice()
+      .sort((a, b) => {
+        const ao = Number.isFinite(a.order) ? a.order : 0;
+        const bo = Number.isFinite(b.order) ? b.order : 0;
+        if (ao !== bo) return ao - bo;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      })
+      .map((t) => t._id);
+
+    const nextIds = [ticketId, ...ids.filter((id) => String(id) !== String(ticketId))];
+
+    await api.reorder(appId, statusKey, nextIds);
+    await refreshTickets(appId);
+  } catch (e) {
+    console.error(e);
+    await refreshTickets(appId);
+  }
+}
 
   function onDragStartTicket(e, ticketId, statusKey) {
     dragRef.current = { ticketId, fromStatus: statusKey };
@@ -711,7 +847,9 @@ export default function App() {
     if (over?.id && over.id !== active.id) {
       try {
         const updated = await api.moveApp(String(active.id), String(over.id));
-        setApps((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x)));
+        setApps((prev) =>
+          (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x))
+        );
       } catch (e) {
         console.error(e);
       }
@@ -720,7 +858,9 @@ export default function App() {
 
   async function moveAppToRoot(app) {
     const updated = await api.moveApp(app._id, null);
-    setApps((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x)));
+    setApps((prev) =>
+      (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x))
+    );
   }
 
   // ==========================
@@ -747,7 +887,9 @@ export default function App() {
       }
       showToast("Guardando nombre…", "info", "modal");
       const updated = await api.updateApp(app._id, newName);
-      setApps((prev) => (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x)));
+      setApps((prev) =>
+        (Array.isArray(prev) ? prev : []).map((x) => (x._id === updated._id ? updated : x))
+      );
       showToast("✅ Nombre guardado", "ok", "modal");
     }
 
@@ -790,259 +932,267 @@ export default function App() {
     }
   }
 
+  // ✅ ABRIR ticket + foco en Nueva nota
   function openTicket(t) {
     setSelectedTicketId(t._id);
     setEditingNote({ ticketId: null, noteId: null, text: "" });
     setEditingTitle({ ticketId: null, title: "" });
     setTicketModalOpen(true);
+
     // limpiamos toast modal
     setToast((prev) => ({ ...prev, open: false }));
+
+    // ✅ foco a "Nueva nota"
+    setTimeout(() => {
+      noteInputRef.current?.focus?.();
+    }, 50);
   }
 
   // PINTAR
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white p-3 md:p-4">
       {/* ✅ ancho real (sin hueco gigante). */}
       <div className="w-full max-w-none px-0 md:px-2">
         {/* Header */}
-<div className="mb-3 md:mb-4">
-  {/* ✅ móvil: título normal */}
-  <div className="md:hidden flex flex-col gap-3">
-  {guideMobileOpen ? (
-  <div className="rounded-2xl border bg-white p-3">
-    <div className="flex items-start justify-between gap-2">
-      <div className="min-w-0">
-        <Typography className="font-semibold text-blue-gray-900">
-          ¿Cómo funciona Tickets / Notas?
-        </Typography>
-        <Typography variant="small" className="text-gray-600">
-          Pulsa <b>Cerrar</b> si te molesta.
-        </Typography>
-      </div>
+        <div className="mb-3 md:mb-4">
+          {/* ✅ móvil: título normal */}
+          <div className="md:hidden flex flex-col gap-3">
+            {guideMobileOpen ? (
+              <div className="rounded-2xl border bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Typography className="font-semibold text-blue-gray-900">
+                      ¿Cómo funciona Tickets / Notas?
+                    </Typography>
+                    <Typography variant="small" className="text-gray-600">
+                      Pulsa <b>Cerrar</b> si te molesta.
+                    </Typography>
+                  </div>
 
-      <button
-        type="button"
-        className="shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1 text-sm font-semibold text-gray-900"
-        onClick={() => setGuideMobileOpen(false)}
-      >
-        Cerrar
-      </button>
-    </div>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1 text-sm font-semibold text-gray-900"
+                    onClick={() => setGuideMobileOpen(false)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
 
-    <div className="mt-3 flex gap-2">
-      <button
-        type="button"
-        onClick={() => setGuideTab("basico")}
-        className={[
-          "rounded-full px-3 py-1 text-sm font-semibold border transition",
-          guideTab === "basico"
-            ? "bg-blue-gray-900 text-white border-blue-gray-900"
-            : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
-        ].join(" ")}
-      >
-        Pasos
-      </button>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGuideTab("basico")}
+                    className={[
+                      "rounded-full px-3 py-1 text-sm font-semibold border transition",
+                      guideTab === "basico"
+                        ? "bg-blue-gray-900 text-white border-blue-gray-900"
+                        : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
+                    ].join(" ")}
+                  >
+                    Pasos
+                  </button>
 
-      <button
-        type="button"
-        onClick={() => setGuideTab("atajos")}
-        className={[
-          "rounded-full px-3 py-1 text-sm font-semibold border transition",
-          guideTab === "atajos"
-            ? "bg-blue-gray-900 text-white border-blue-gray-900"
-            : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
-        ].join(" ")}
-      >
-        Atajos
-      </button>
-    </div>
+                  <button
+                    type="button"
+                    onClick={() => setGuideTab("atajos")}
+                    className={[
+                      "rounded-full px-3 py-1 text-sm font-semibold border transition",
+                      guideTab === "atajos"
+                        ? "bg-blue-gray-900 text-white border-blue-gray-900"
+                        : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
+                    ].join(" ")}
+                  >
+                    Atajos
+                  </button>
+                </div>
 
-    {guideTab === "basico" ? (
-      <div className="mt-3 grid grid-cols-1 gap-2">
-        <div className="rounded-2xl border bg-gray-50 p-3">
-          <Typography className="font-semibold text-blue-gray-900">1) Crea una app</Typography>
-          <Typography variant="small" className="text-gray-600 mt-1">
-            Escribe el nombre y pulsa <b>Crear aplicación</b>.
-          </Typography>
-        </div>
-        <div className="rounded-2xl border bg-gray-50 p-3">
-          <Typography className="font-semibold text-blue-gray-900">2) Crea un ticket</Typography>
-          <Typography variant="small" className="text-gray-600 mt-1">
-            Rellena <b>Título</b> y elige quién lo <b>abre</b>.
-          </Typography>
-        </div>
-        <div className="rounded-2xl border bg-gray-50 p-3">
-          <Typography className="font-semibold text-blue-gray-900">3) Detalle</Typography>
-          <Typography variant="small" className="text-gray-600 mt-1">
-            Click en un ticket → editar título / notas / añadir nota.
-          </Typography>
-        </div>
-        <div className="rounded-2xl border bg-gray-50 p-3">
-          <Typography className="font-semibold text-blue-gray-900">4) Mover</Typography>
-          <Typography variant="small" className="text-gray-600 mt-1">
-            Arrastra para cambiar estado o prioridad.
-          </Typography>
-        </div>
-      </div>
-    ) : (
-      <div className="mt-3 rounded-2xl border bg-gray-50 p-3">
-        <Typography className="font-semibold text-blue-gray-900">Tips</Typography>
-        <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 space-y-1">
-          <li>Si falta Título o Abre, saldrá aviso debajo del bloque de crear ticket.</li>
-          <li>Responsable es opcional.</li>
-          <li>En el modal: “Aceptar” guarda ABRE/Responsable.</li>
-        </ul>
-      </div>
-    )}
-  </div>
-) : null}
-<div className="flex items-start justify-between gap-2">
-  <div className="min-w-0">
-    <Typography variant="h4" className="text-blue-gray-900">
-      Tickets / Notas
-    </Typography>
-    <Typography variant="small" className="text-gray-600">
-      {selectedApp ? `App activa: ${selectedApp.name}` : "Crea o selecciona una aplicación"}
-    </Typography>
-  </div>
+                {guideTab === "basico" ? (
+                  <div className="mt-3 grid grid-cols-1 gap-2">
+                    <div className="rounded-2xl border bg-gray-50 p-3">
+                      <Typography className="font-semibold text-blue-gray-900">1) Crea una app</Typography>
+                      <Typography variant="small" className="text-gray-600 mt-1">
+                        Escribe el nombre y pulsa <b>Crear aplicación</b>.
+                      </Typography>
+                    </div>
+                    <div className="rounded-2xl border bg-gray-50 p-3">
+                      <Typography className="font-semibold text-blue-gray-900">2) Crea un ticket</Typography>
+                      <Typography variant="small" className="text-gray-600 mt-1">
+                        Rellena <b>Título</b> y elige quién lo <b>abre</b>.
+                      </Typography>
+                    </div>
+                    <div className="rounded-2xl border bg-gray-50 p-3">
+                      <Typography className="font-semibold text-blue-gray-900">3) Detalle</Typography>
+                      <Typography variant="small" className="text-gray-600 mt-1">
+                        Click en un ticket → editar título / notas / añadir nota.
+                      </Typography>
+                    </div>
+                    <div className="rounded-2xl border bg-gray-50 p-3">
+                      <Typography className="font-semibold text-blue-gray-900">4) Mover</Typography>
+                      <Typography variant="small" className="text-gray-600 mt-1">
+                        Arrastra para cambiar estado o prioridad.
+                      </Typography>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-2xl border bg-gray-50 p-3">
+                    <Typography className="font-semibold text-blue-gray-900">Tips</Typography>
+                    <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 space-y-1">
+                      <li>Si falta Título o Abre, saldrá aviso debajo del bloque de crear ticket.</li>
+                      <li>Responsable es opcional.</li>
+                      <li>En el modal: “Aceptar” guarda ABRE/Responsable.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
-  {/* ✅ Hamburguesa guía (móvil) */}
-  <button
-    type="button"
-    className="shrink-0 h-10 w-10 rounded-2xl border bg-white hover:bg-gray-50 text-xl leading-none"
-    onClick={() => setGuideMobileOpen((v) => !v)}
-    aria-label="Abrir ayuda"
-    title="Cómo funciona"
-  >
-    ☰
-  </button>
-</div>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <Typography variant="h4" className="text-blue-gray-900">
+                  Tickets / Notas
+                </Typography>
+                <Typography variant="small" className="text-gray-600">
+                  {selectedApp ? `App activa: ${selectedApp.name}` : "Crea o selecciona una aplicación"}
+                </Typography>
+              </div>
 
-    {/* Mobile selector */}
-    <div>
-      <select
-        className="w-full rounded-2xl border bg-white px-3 py-3 text-sm"
-        value={selectedAppId || ""}
-        onChange={(e) => setSelectedAppId(e.target.value || null)}
-      >
-        <option value="">Selecciona app…</option>
-        {flattenedApps.map((a) => (
-          <option key={a._id} value={a._id}>
-            {`${"—".repeat(a.depth)}${a.depth ? " " : ""}${a.name}`}
-          </option>
-        ))}
-      </select>
-    </div>
-  </div>
-
-  {/* ✅ desktop: MISMA REJILLA que el layout (4 / 8) */}
-  <div className="hidden md:grid md:grid-cols-12 md:gap-4">
-    {/* Izquierda = mismo ancho que “Aplicaciones” */}
-    <div className="md:col-span-4 md:pl-1">
-      <Typography variant="h4" className="text-blue-gray-900">
-        Tickets / Notas
-      </Typography>
-      <Typography variant="small" className="text-gray-600">
-        {selectedApp ? `App activa: ${selectedApp.name}` : "Crea o selecciona una aplicación"}
-      </Typography>
-    </div>
-
-    {/* Derecha = mismo ancho que “Tablero” */}
-    <div className="md:col-span-8">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <Typography className="font-semibold text-blue-gray-900 text-base">
-              ¿Cómo funciona Tickets / Notas?
-            </Typography>
-            <Typography variant="small" className="text-gray-600">
-              Dale a <span className="text-red-500 font-bold">"ocultar"</span> si te moleta este panel de ayuda y si quieres verlo dale a <span className="text-green-500 font-bold">"ver"</span>
-            </Typography>
-          </div>
-
-          <button
-            type="button"
-            className="shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1 text-sm font-semibold text-gray-900"
-            onClick={() => setGuideOpen((v) => !v)}
-          >
-            {guideOpen ? "Ocultar" : "Ver"}
-          </button>
-        </div>
-
-        {guideOpen ? (
-          <div className="mt-3">
-            <div className="flex gap-2">
+              {/* ✅ Hamburguesa guía (móvil) */}
               <button
                 type="button"
-                onClick={() => setGuideTab("basico")}
-                className={[
-                  "rounded-full px-3 py-1 text-sm font-semibold border transition",
-                  guideTab === "basico"
-                    ? "bg-blue-gray-900 text-white border-blue-gray-900"
-                    : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
-                ].join(" ")}
+                className="shrink-0 h-10 w-10 rounded-2xl border bg-white hover:bg-gray-50 text-xl leading-none"
+                onClick={() => setGuideMobileOpen((v) => !v)}
+                aria-label="Abrir ayuda"
+                title="Cómo funciona"
               >
-                Pasos
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setGuideTab("atajos")}
-                className={[
-                  "rounded-full px-3 py-1 text-sm font-semibold border transition",
-                  guideTab === "atajos"
-                    ? "bg-blue-gray-900 text-white border-blue-gray-900"
-                    : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
-                ].join(" ")}
-              >
-                Atajos
+                ☰
               </button>
             </div>
 
-            {guideTab === "basico" ? (
-              <div className="mt-3 grid grid-cols-4 gap-3">
-                <div className="rounded-2xl border bg-gray-50 p-4">
-                  <Typography className="font-semibold text-blue-gray-900">1) Crea una app</Typography>
-                  <Typography variant="small" className="text-gray-600 mt-1">
-                    Escribe el nombre y pulsa <b>Crear aplicación</b> al crear una nueva.
-                  </Typography>
-                </div>
-                <div className="rounded-2xl border bg-gray-50 p-4">
-                  <Typography className="font-semibold text-blue-gray-900">2) Crea un ticket</Typography>
-                  <Typography variant="small" className="text-gray-600 mt-1">
-                    Rellena <b>Título</b> y pon quien lo <b>crea</b> (obligatorio).
-                  </Typography>
-                </div>
-                <div className="rounded-2xl border bg-gray-50 p-4">
-                  <Typography className="font-semibold text-blue-gray-900">3) Detalle</Typography>
-                  <Typography variant="small" className="text-gray-600 mt-1">
-                    Click en un ticket → Puedes editar título y notas y añadir nuevas notas.
-                  </Typography>
-                </div>
-                <div className="rounded-2xl border bg-gray-50 p-4">
-                  <Typography className="font-semibold text-blue-gray-900">4) Mover</Typography>
-                  <Typography variant="small" className="text-gray-600 mt-1">
-                    Arrastra para cambiar de estado o prioridad.
-                  </Typography>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-2xl border bg-gray-50 p-4">
-                <Typography className="font-semibold text-blue-gray-900">Tips</Typography>
-                <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 space-y-1">
-                  <li>Si falta Título o nos e pone la persona que lo abre, te saldrá aviso debajo del bloque de crear ticket.</li>
-                  <li>El responsable es opcional.</li>
-                  <li>Dentro del detalles del tickets: dale “Aceptar” para guarda</li>
-                </ul>
-              </div>
-            )}
+            {/* Mobile selector */}
+            <div>
+              <select
+                className="w-full rounded-2xl border bg-white px-3 py-3 text-sm"
+                value={selectedAppId || ""}
+                onChange={(e) => setSelectedAppId(e.target.value || null)}
+              >
+                <option value="">Selecciona app…</option>
+                {flattenedApps.map((a) => (
+                  <option key={a._id} value={a._id}>
+                    {`${"—".repeat(a.depth)}${a.depth ? " " : ""}${a.name}`}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        ) : null}
-      </div>
-    </div>
-  </div>
-</div>
+
+          {/* ✅ desktop: MISMA REJILLA que el layout (4 / 8) */}
+          <div className="hidden md:grid md:grid-cols-12 md:gap-4">
+            {/* Izquierda = mismo ancho que “Aplicaciones” */}
+            <div className="md:col-span-4 md:pl-1">
+              <Typography variant="h4" className="text-blue-gray-900">
+                Tickets / Notas
+              </Typography>
+              <Typography variant="small" className="text-gray-600">
+                {selectedApp ? `App activa: ${selectedApp.name}` : "Crea o selecciona una aplicación"}
+              </Typography>
+            </div>
+
+            {/* Derecha = mismo ancho que “Tablero” */}
+            <div className="md:col-span-8">
+              <div className="rounded-2xl border bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Typography className="font-semibold text-blue-gray-900 text-base">
+                      ¿Cómo funciona Tickets / Notas?
+                    </Typography>
+                    <Typography variant="small" className="text-gray-600">
+                      Dale a <span className="text-red-500 font-bold">"ocultar"</span> si te moleta este panel de ayuda y si quieres verlo dale a{" "}
+                      <span className="text-green-500 font-bold">"ver"</span>
+                    </Typography>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1 text-sm font-semibold text-gray-900"
+                    onClick={() => setGuideOpen((v) => !v)}
+                  >
+                    {guideOpen ? "Ocultar" : "Ver"}
+                  </button>
+                </div>
+
+                {guideOpen ? (
+                  <div className="mt-3">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGuideTab("basico")}
+                        className={[
+                          "rounded-full px-3 py-1 text-sm font-semibold border transition",
+                          guideTab === "basico"
+                            ? "bg-blue-gray-900 text-white border-blue-gray-900"
+                            : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
+                        ].join(" ")}
+                      >
+                        Pasos
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setGuideTab("atajos")}
+                        className={[
+                          "rounded-full px-3 py-1 text-sm font-semibold border transition",
+                          guideTab === "atajos"
+                            ? "bg-blue-gray-900 text-white border-blue-gray-900"
+                            : "bg-white text-blue-gray-900 border-gray-200 hover:bg-gray-50",
+                        ].join(" ")}
+                      >
+                        Atajos
+                      </button>
+                    </div>
+
+                    {guideTab === "basico" ? (
+                      <div className="mt-3 grid grid-cols-4 gap-3">
+                        <div className="rounded-2xl border bg-gray-50 p-4">
+                          <Typography className="font-semibold text-blue-gray-900">1) Crea una app</Typography>
+                          <Typography variant="small" className="text-gray-600 mt-1">
+                            Escribe el nombre y pulsa <b>Crear aplicación</b> al crear una nueva.
+                          </Typography>
+                        </div>
+                        <div className="rounded-2xl border bg-gray-50 p-4">
+                          <Typography className="font-semibold text-blue-gray-900">2) Crea un ticket</Typography>
+                          <Typography variant="small" className="text-gray-600 mt-1">
+                            Rellena <b>Título</b> y pon quien lo <b>crea</b> (obligatorio).
+                          </Typography>
+                        </div>
+                        <div className="rounded-2xl border bg-gray-50 p-4">
+                          <Typography className="font-semibold text-blue-gray-900">3) Detalle</Typography>
+                          <Typography variant="small" className="text-gray-600 mt-1">
+                            Click en un ticket → Puedes editar título y notas y añadir nuevas notas.
+                          </Typography>
+                        </div>
+                        <div className="rounded-2xl border bg-gray-50 p-4">
+                          <Typography className="font-semibold text-blue-gray-900">4) Mover</Typography>
+                          <Typography variant="small" className="text-gray-600 mt-1">
+                            Arrastra para cambiar de estado o prioridad.
+                          </Typography>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-2xl border bg-gray-50 p-4">
+                        <Typography className="font-semibold text-blue-gray-900">Tips</Typography>
+                        <ul className="mt-2 list-disc pl-5 text-sm text-gray-700 space-y-1">
+                          <li>Si falta Título o nos e pone la persona que lo abre, te saldrá aviso debajo del bloque de crear ticket.</li>
+                          <li>El responsable es opcional.</li>
+                          <li>Dentro del detalles del tickets: dale “Aceptar” para guarda</li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Layout desktop */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4">
@@ -1402,7 +1552,9 @@ export default function App() {
                   <button
                     type="button"
                     className="shrink-0 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1 text-sm font-semibold text-gray-900"
-                    onClick={() => setEditingTitle({ ticketId: selectedTicket._id, title: selectedTicket.title })}
+                    onClick={() =>
+                      setEditingTitle({ ticketId: selectedTicket._id, title: selectedTicket.title })
+                    }
                     title="Modificar título"
                   >
                     Modificar
@@ -1464,6 +1616,7 @@ export default function App() {
                 placeholder="Nueva nota"
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
+                inputRef={noteInputRef}
               />
               <div className="mt-2 flex gap-2">
                 <button
@@ -1487,99 +1640,102 @@ export default function App() {
 
             {/* Lista notas */}
             <div className="mt-3 space-y-3">
-              {(selectedTicket.notes || []).slice().reverse().map((n) => {
-                const isEditing =
-                  editingNote.ticketId === selectedTicket._id &&
-                  editingNote.noteId === n._id;
+              {(selectedTicket.notes || [])
+                .slice()
+                .reverse()
+                .map((n) => {
+                  const isEditing =
+                    editingNote.ticketId === selectedTicket._id &&
+                    editingNote.noteId === n._id;
 
-                return (
-                  <div
-                    key={n._id}
-                    className="rounded-2xl border bg-white p-3 shadow-sm"
-                    onClick={() =>
-                      setEditingNote({
-                        ticketId: selectedTicket._id,
-                        noteId: n._id,
-                        text: n.text,
-                      })
-                    }
-                    title="Click para editar"
-                  >
-                    {!isEditing ? (
-                      <>
-                        <Typography className="whitespace-pre-wrap break-words text-blue-gray-900">
-                          {n.text}
-                        </Typography>
-                        <Typography variant="small" className="mt-2 text-gray-600">
-                          {formatDate(n.at)}
-                        </Typography>
-                      </>
-                    ) : (
-                      <>
-                        <Textarea
-                          label=""
-                          placeholder="Editando nota"
-                          value={editingNote.text}
-                          onChange={(e) =>
-                            setEditingNote((prev) => ({
-                              ...prev,
-                              text: e.target.value,
-                            }))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Escape")
-                              setEditingNote({
-                                ticketId: null,
-                                noteId: null,
-                                text: "",
-                              });
-                          }}
-                        />
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="rounded-xl bg-blue-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-gray-800 disabled:opacity-60 disabled:cursor-not-allowed"
-                            disabled={savingNote}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              saveEditedNote();
+                  return (
+                    <div
+                      key={n._id}
+                      className="rounded-2xl border bg-white p-3 shadow-sm"
+                      onClick={() =>
+                        setEditingNote({
+                          ticketId: selectedTicket._id,
+                          noteId: n._id,
+                          text: n.text,
+                        })
+                      }
+                      title="Click para editar"
+                    >
+                      {!isEditing ? (
+                        <>
+                          <Typography className="whitespace-pre-wrap break-words text-blue-gray-900">
+                            {n.text}
+                          </Typography>
+                          <Typography variant="small" className="mt-2 text-gray-600">
+                            {formatDate(n.at)}
+                          </Typography>
+                        </>
+                      ) : (
+                        <>
+                          <Textarea
+                            label=""
+                            placeholder="Editando nota"
+                            value={editingNote.text}
+                            onChange={(e) =>
+                              setEditingNote((prev) => ({
+                                ...prev,
+                                text: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape")
+                                setEditingNote({
+                                  ticketId: null,
+                                  noteId: null,
+                                  text: "",
+                                });
                             }}
-                          >
-                            {savingNote ? "Guardando…" : "Guardar"}
-                          </button>
+                          />
 
-                          <button
-                            type="button"
-                            className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingNote({ ticketId: null, noteId: null, text: "" });
-                            }}
-                          >
-                            Cancelar
-                          </button>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className="rounded-xl bg-blue-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-gray-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                              disabled={savingNote}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                saveEditedNote();
+                              }}
+                            >
+                              {savingNote ? "Guardando…" : "Guardar"}
+                            </button>
 
-                          <button
-                            type="button"
-                            className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteNote(selectedTicket._id, n._id);
-                            }}
-                          >
-                            Borrar
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              className="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-200"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingNote({ ticketId: null, noteId: null, text: "" });
+                              }}
+                            >
+                              Cancelar
+                            </button>
 
-                        <Typography variant="small" className="mt-2 text-gray-600">
-                          {formatDate(n.at)}
-                        </Typography>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+                            <button
+                              type="button"
+                              className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNote(selectedTicket._id, n._id);
+                              }}
+                            >
+                              Borrar
+                            </button>
+                          </div>
+
+                          <Typography variant="small" className="mt-2 text-gray-600">
+                            {formatDate(n.at)}
+                          </Typography>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
 
               {(selectedTicket.notes || []).length === 0 ? (
                 <div className="rounded-2xl border border-dashed bg-white p-4">
